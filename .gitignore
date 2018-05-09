@@ -99,3 +99,10 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# lock
+package-lock.json
+composer.lock
+
+# nvdcve json gz
+*.json.gz
