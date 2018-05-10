@@ -18,7 +18,7 @@ logger.addHandler(handler)
 CVE_20_MODIFIED_URL = 'https://nvd.nist.gov/feeds/json/cve/1.0/nvdcve-1.0-modified.json.gz'
 PACKAGES_LOCK_JSON = './package-lock.json'
 COMPOSER_LOCK_JSON = './composer.lock'
-OVERWRITE_CVE = False
+OVERWRITE_CVE_FEED_FILE = True
 
 # NVDFeed class
 class NVDFeed:
@@ -27,7 +27,7 @@ class NVDFeed:
 
     def __init__(self):
         cve_exists = os.path.exists(self.cve_file)
-        if not cve_exists or OVERWRITE_CVE:
+        if not cve_exists or OVERWRITE_CVE_FEED_FILE:
             self.download()
         else:
             self.extract()
@@ -68,9 +68,11 @@ class NVDFeed:
             impact = cve_item.get('impact', None)
             if impact:
                 try:
-                    baseSeverity = impact['baseMetricV3']['cvssV3']['baseSeverity']
+                    severity = impact['baseMetricV2']['severity']
+                    impactScore = impact['baseMetricV2']['impactScore']
                 except Exception as e:
-                    baseSeverity = None
+                    severity = None
+                    impactScore = None
 
             nodes = configurations.get('nodes', None)
             if not nodes:
@@ -84,17 +86,22 @@ class NVDFeed:
             for e in cpe:
                 cpe22Uri = e.get('cpe22Uri', None)
                 versionEndExcluding = e.get('versionEndExcluding', None)
+                versionEndIncluding = e.get('versionEndIncluding', None)
                 if cpe22Uri:
                     cpe_uri = cpe22Uri.split(':')
+                    ver = cpe_uri[4] if len(cpe_uri) > 4 and cpe_uri[4] != '' else None
                     for p in packages:
                         if p == cpe_uri[3]:
                             match = {
                                 'package': p,
                                 'cpe22Uri': cpe22Uri,
                                 'cve': cve['CVE_data_meta']['ID'],
+                                'version': ver,
                                 'versionEndExcluding': versionEndExcluding,
+                                'versionEndIncluding': versionEndIncluding,
                                 'impact': {
-                                    'baseSeverity': baseSeverity
+                                    'severity': severity,
+                                    'impactScore': impactScore
                                 }
                             }
                             self.__logger__(match)

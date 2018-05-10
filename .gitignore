@@ -106,3 +106,6 @@ composer.lock
 
 # nvdcve json gz
 *.json.gz
+
+# MacOS
+.DS_Store
