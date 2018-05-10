@@ -1,3 +1,4 @@
+from distutils.version import LooseVersion
 import urllib
 import logging
 import gzip
@@ -18,7 +19,7 @@ logger.addHandler(handler)
 CVE_20_MODIFIED_URL = 'https://nvd.nist.gov/feeds/json/cve/1.0/nvdcve-1.0-modified.json.gz'
 PACKAGES_LOCK_JSON = './package-lock.json'
 COMPOSER_LOCK_JSON = './composer.lock'
-OVERWRITE_CVE_FEED_FILE = True
+OVERWRITE_CVE_FEED_FILE = False
 
 # NVDFeed class
 class NVDFeed:
@@ -90,13 +91,28 @@ class NVDFeed:
                 if cpe22Uri:
                     cpe_uri = cpe22Uri.split(':')
                     ver = cpe_uri[4] if len(cpe_uri) > 4 and cpe_uri[4] != '' else None
-                    for p in packages:
-                        if p == cpe_uri[3]:
-                            match = {
-                                'package': p,
+                    for name, package in packages:
+                        match = False
+                        if name == cpe_uri[3]:
+                            # Check if version matches
+                            pack_version = package.get('version', None)
+                            if pack_version:
+                                pack_version = LooseVersion(pack_version)
+                                if ver:
+                                    cpe_version = LooseVersion(ver)
+                                    if cpe_version >= pack_version:
+                                        match = True
+                                elif versionEndExcluding and LooseVersion(versionEndExcluding) > pack_version:
+                                    match = True
+                                elif versionEndIncluding and LooseVersion(versionEndIncluding) >= pack_version:
+                                    match = True
+
+                        if match:
+                            details = {
+                                'package': name,
                                 'cpe22Uri': cpe22Uri,
                                 'cve': cve['CVE_data_meta']['ID'],
-                                'version': ver,
+                                'version': pack_version,
                                 'versionEndExcluding': versionEndExcluding,
                                 'versionEndIncluding': versionEndIncluding,
                                 'impact': {
@@ -104,14 +120,13 @@ class NVDFeed:
                                     'impactScore': impactScore
                                 }
                             }
-                            self.__logger__(match)
-                            matches.append(match)
+                            self.__logger__(details)
+                            matches.append(details)
         return matches
 
 class LockPackages:
     files = []
     packages = []
-    full_packages = []
 
     def __init__(self):
         self.check_packages_type()
@@ -138,8 +153,7 @@ class LockPackages:
                     raise Exception('No dependencies found. YOU GOOD TO GO!')
 
                 dependencies = packages_json.get('dependencies')
-                packages = packages + dependencies.keys()
-                # self.full_packages = self.full_packages + dependencies
+                packages = packages + [(n,p) for n,p in dependencies.iteritems()]
 
             if _file == COMPOSER_LOCK_JSON:
                 packages_json = json_file_to_dict(COMPOSER_LOCK_JSON)
@@ -147,10 +161,9 @@ class LockPackages:
                     raise Exception('No dependencies found. YOU GOOD TO GO!')
 
                 _packages = packages_json.get('packages')
-                # self.full_packages = self.full_packages + _packages
                 for _pack in _packages:
                     p = _pack['name'].split('/')
-                    packages.append(p[1])
+                    packages.append((p[1], _pack))
 
         self.packages = packages
 
