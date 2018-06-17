@@ -157,6 +157,17 @@ class LockPackages:
     def get(self):
         return self.packages
 
+    def used_licenses(self):
+        _licenes = []
+        for _pack in self.packages:
+            package_json_file_path = './node_modules/%s/package.json' % _pack
+            if os.path.exists(package_json_file_path):
+                package_json = json_file_to_dict(package_json_file_path)
+                license = package_json.get('license', False)
+                if license and license not in _licenes:
+                    _licenes.append(package_json.get('license'))
+        self.licenses = _licenes
+
 # json to dict
 def json_file_to_dict(file):
     data = None
@@ -174,6 +185,7 @@ if __name__ == '__main__':
     feed = NVDFeed()
     lock_packages = LockPackages()
     packages = lock_packages.get()
+    lock_packages.used_licenses()
     matches = feed.search_packages(packages)
     end_time = time.time()
 
